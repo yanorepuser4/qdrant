@@ -92,6 +92,8 @@ pub struct StorageConfig {
     /// Default method used for transferring shards.
     #[serde(default)]
     pub shard_transfer_method: Option<ShardTransferMethod>,
+    #[serde(default)]
+    pub gpu_indexing: bool,
 }
 
 impl StorageConfig {
