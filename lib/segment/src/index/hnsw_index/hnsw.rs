@@ -672,6 +672,7 @@ impl<TGraphLinks: GraphLinks> VectorIndex for HNSWIndex<TGraphLinks> {
             HNSW_USE_HEURISTIC,
         );
 
+        let threads_count = max_rayon_threads(self.config.max_indexing_threads);
         let pool = rayon::ThreadPoolBuilder::new()
             .thread_name(|idx| format!("hnsw-build-{idx}"))
             .num_threads(permit.num_cpus as usize)
@@ -769,6 +770,7 @@ impl<TGraphLinks: GraphLinks> VectorIndex for HNSWIndex<TGraphLinks> {
                     raw_scorer,
                     &vector_storage,
                     &mut rng,
+                    threads_count,
                     GPU_THREADS_COUNT,
                 );
                 gpu_graph_builder.build();
