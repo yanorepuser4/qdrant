@@ -9,7 +9,7 @@ license = "Apache-2.0"
 edition = "2021"
 
 [features]
-tracing = ["dep:tracing", "api/tracing", "segment/tracing"]
+tracing = ["api/tracing", "segment/tracing"]
 
 [dev-dependencies]
 criterion = "0.5"
@@ -73,7 +73,7 @@ indexmap = { workspace = true }
 ringbuffer = "0.15.0"
 strum = { workspace = true }
 
-tracing = { workspace = true, optional = true }
+tracing = { workspace = true }
 
 [[bench]]
 name = "hash_ring_bench"

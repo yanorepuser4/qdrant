@@ -14,6 +14,7 @@ const DEFAULT_FILTERS: &[(&str, log::LevelFilter)] = &[
     ("rustls", log::LevelFilter::Info),
     ("wal", log::LevelFilter::Warn),
     ("raft", log::LevelFilter::Warn),
+    ("[{tracing.target}]", log::LevelFilter::Off),
 ];
 
 pub fn setup(user_filters: &str) -> anyhow::Result<()> {
@@ -37,7 +38,6 @@ pub fn setup(user_filters: &str) -> anyhow::Result<()> {
         fmt::layer()
             // Only use ANSI if we should colorize
             .with_ansi(ShouldColorize::from_env().should_colorize())
-            .with_span_events(fmt::format::FmtSpan::NEW)
             .with_filter(
                 filter::EnvFilter::builder()
                     .with_regex(false)

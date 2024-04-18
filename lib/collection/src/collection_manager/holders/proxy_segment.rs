@@ -137,6 +137,11 @@ impl ProxySegment {
             deleted_points_write.insert(point_id);
         }
 
+        tracing::info!(
+            tracing.target = "upsert_points",
+            "moved point {point_id} from wrapped into temporary segment",
+        );
+
         Ok(true)
     }
 
@@ -704,6 +709,9 @@ impl SegmentEntry for ProxySegment {
         let deleted_indexes_guard = self.deleted_indexes.read();
         let created_indexes_guard = self.created_indexes.read();
 
+        let _span = tracing::info_span!("flush", segment.id = self.id(), tracing.target = "flush",)
+            .entered();
+
         let wrapped_version = self.wrapped_segment.get().read().flush(sync)?;
         let write_segment_version = self.write_segment.get().read().flush(sync)?;
 
@@ -718,6 +726,11 @@ impl SegmentEntry for ProxySegment {
         };
 
         let _ = self.last_flushed_version.write().insert(flushed_version);
+
+        tracing::info!(
+            tracing.target = "flush",
+            "proxy segment flushed: {flushed_version}",
+        );
 
         Ok(flushed_version)
     }
@@ -862,6 +875,14 @@ impl SegmentEntry for ProxySegment {
             .get()
             .read()
             .fill_query_context(query_context)
+    }
+
+    fn is_proxy(&self) -> bool {
+        true
+    }
+
+    fn tmp_path(&self) -> PathBuf {
+        self.write_segment.get().read().data_path()
     }
 }
 
