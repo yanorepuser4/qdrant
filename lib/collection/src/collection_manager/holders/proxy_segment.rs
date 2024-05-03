@@ -41,6 +41,8 @@ pub struct ProxySegment {
     created_indexes: LockedFieldsMap,
     last_flushed_version: Arc<RwLock<Option<SeqNumberType>>>,
     wrapped_config: SegmentConfig,
+    data_path: PathBuf,
+    tmp_path: PathBuf,
 }
 
 impl ProxySegment {
@@ -51,7 +53,14 @@ impl ProxySegment {
         created_indexes: LockedFieldsMap,
         deleted_indexes: LockedFieldsSet,
     ) -> Self {
-        let wrapped_config = segment.get().read().config().clone();
+        let (wrapped_config, data_path) = {
+            let segment = segment.get();
+            let segment = segment.read();
+            (segment.config().clone(), segment.data_path().to_path_buf())
+        };
+
+        let tmp_path = write_segment.get().read().data_path().to_path_buf();
+
         ProxySegment {
             write_segment,
             wrapped_segment: segment,
@@ -60,6 +69,8 @@ impl ProxySegment {
             deleted_indexes,
             last_flushed_version: Arc::new(RwLock::new(None)),
             wrapped_config,
+            data_path,
+            tmp_path,
         }
     }
 
@@ -709,7 +720,8 @@ impl SegmentEntry for ProxySegment {
         let deleted_indexes_guard = self.deleted_indexes.read();
         let created_indexes_guard = self.created_indexes.read();
 
-        let _span = tracing::info_span!("flush", segment.id = self.id(), internal = true).entered();
+        let _span =
+            tracing::info_span!("flush", segment.id = %self.id(), internal = true).entered();
 
         let wrapped_version = self.wrapped_segment.get().read().flush(sync)?;
         let write_segment_version = self.write_segment.get().read().flush(sync)?;
@@ -735,8 +747,8 @@ impl SegmentEntry for ProxySegment {
         self.wrapped_segment.drop_data()
     }
 
-    fn data_path(&self) -> PathBuf {
-        self.wrapped_segment.get().read().data_path()
+    fn data_path(&self) -> &Path {
+        &self.data_path
     }
 
     fn delete_field_index(&mut self, op_num: u64, key: PayloadKeyTypeRef) -> OperationResult<bool> {
@@ -877,8 +889,8 @@ impl SegmentEntry for ProxySegment {
         true
     }
 
-    fn tmp_path(&self) -> PathBuf {
-        self.write_segment.get().read().data_path()
+    fn tmp_path(&self) -> Option<&Path> {
+        Some(&self.tmp_path)
     }
 }
 
