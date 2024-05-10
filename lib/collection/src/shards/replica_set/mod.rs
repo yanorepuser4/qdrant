@@ -243,6 +243,7 @@ impl ShardReplicaSet {
             let shard = if let Some(recovery_reason) = &shared_storage_config.recovery_mode {
                 Shard::Dummy(DummyShard::new(recovery_reason))
             } else {
+                log::debug!("LocalShard.load: start");
                 let res = LocalShard::load(
                     shard_id,
                     collection_id.clone(),
@@ -253,6 +254,7 @@ impl ShardReplicaSet {
                     optimizer_cpu_budget.clone(),
                 )
                 .await;
+                log::debug!("LocalShard.load: end");
 
                 match res {
                     Ok(shard) => Shard::Local(shard),

@@ -136,6 +136,8 @@ fn main() -> anyhow::Result<()> {
 
     remove_started_file_indicator();
 
+    // LogMsg::Warn(format!("qdrant.load: start"));
+
     let settings = Settings::new(args.config_path)?;
 
     let reporting_enabled = !settings.telemetry_disabled && !args.disable_telemetry;
@@ -246,6 +248,7 @@ fn main() -> anyhow::Result<()> {
 
     // Table of content manages the list of collections.
     // It is a main entry point for the storage.
+    log::debug!("TableOfContent.new: start");
     let toc = TableOfContent::new(
         &settings.storage,
         search_runtime,
@@ -256,7 +259,7 @@ fn main() -> anyhow::Result<()> {
         persistent_consensus_state.this_peer_id(),
         propose_operation_sender.clone(),
     );
-
+    log::debug!("TableOfContent.new: end");
     toc.clear_all_tmp_directories()?;
 
     // Here we load all stored collections.
@@ -288,9 +291,11 @@ fn main() -> anyhow::Result<()> {
 
         dispatcher = dispatcher.with_consensus(consensus_state.clone());
 
+        log::debug!("ShardTransferDispatcher.new: start");
         let shard_transfer_dispatcher =
             ShardTransferDispatcher::new(Arc::downgrade(&toc_arc), consensus_state.clone());
         toc_arc.with_shard_transfer_dispatcher(shard_transfer_dispatcher);
+        log::debug!("ShardTransferDispatcher.new: end");
 
         let dispatcher_arc = Arc::new(dispatcher);
 
@@ -313,6 +318,7 @@ fn main() -> anyhow::Result<()> {
             consensus_state.is_new_deployment() && args.bootstrap.is_some(),
         ));
 
+        log::debug!("Consensus.run: start");
         let handle = Consensus::run(
             &slog_logger,
             consensus_state.clone(),
@@ -326,6 +332,7 @@ fn main() -> anyhow::Result<()> {
             runtime_handle.clone(),
         )
         .expect("Can't initialize consensus");
+        log::debug!("Consensus.run: end");
 
         handles.push(handle);
 
