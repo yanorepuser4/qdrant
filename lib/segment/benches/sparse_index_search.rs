@@ -22,7 +22,7 @@ use segment::types::{Condition, FieldCondition, Filter, Payload};
 use serde_json::json;
 use sparse::common::sparse_vector::SparseVector;
 use sparse::common::sparse_vector_fixture::{random_positive_sparse_vector, random_sparse_vector};
-use sparse::index::inverted_index::inverted_index_mmap::InvertedIndexMmap;
+use sparse::index::inverted_index::inverted_index_compressed_mmap::InvertedIndexMmap;
 use sparse::index::loaders::Csr;
 use tempfile::Builder;
 

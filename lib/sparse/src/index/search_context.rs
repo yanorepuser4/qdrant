@@ -388,7 +388,7 @@ mod tests {
     use crate::common::scores_memory_pool::ScoresMemoryPool;
     use crate::common::sparse_vector::SparseVector;
     use crate::common::sparse_vector_fixture::random_sparse_vector;
-    use crate::index::inverted_index::inverted_index_mmap::InvertedIndexMmap;
+    use crate::index::inverted_index::inverted_index_compressed_mmap::InvertedIndexMmap;
     use crate::index::inverted_index::inverted_index_ram::InvertedIndexRam;
     use crate::index::inverted_index::inverted_index_ram_builder::InvertedIndexBuilder;
 

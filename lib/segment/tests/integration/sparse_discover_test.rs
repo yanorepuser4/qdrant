@@ -22,7 +22,7 @@ use segment::types::{
 };
 use segment::vector_storage::query::{ContextPair, DiscoveryQuery};
 use sparse::common::sparse_vector::SparseVector;
-use sparse::index::inverted_index::inverted_index_immutable_ram::InvertedIndexImmutableRam;
+use sparse::index::inverted_index::inverted_index_compressed_immutable_ram::InvertedIndexImmutableRam;
 use tempfile::Builder;
 
 const MAX_EXAMPLE_PAIRS: usize = 3;
