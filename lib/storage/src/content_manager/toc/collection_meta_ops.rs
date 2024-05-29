@@ -278,6 +278,10 @@ impl TableOfContent {
                 collection.start_resharding(key).await?;
             }
 
+            ReshardingOperation::CommitHashRing(key) => {
+                collection.commit_hashring(key).await?;
+            }
+
             ReshardingOperation::Abort(key) => {
                 collection.abort_resharding(key).await?;
             }

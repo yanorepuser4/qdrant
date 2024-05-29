@@ -659,6 +659,10 @@ impl Collection {
         Ok(())
     }
 
+    pub async fn commit_hashring(&self, reshard: ReshardingKey) -> CollectionResult<()> {
+        self.shards_holder.write().await.commit_hashring(reshard)
+    }
+
     pub async fn abort_resharding(&self, reshard: ReshardingKey) -> CollectionResult<()> {
         self.shards_holder
             .write()
