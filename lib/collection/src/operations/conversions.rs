@@ -27,9 +27,8 @@ use super::consistency_params::ReadConsistency;
 use super::types::{
     BaseGroupRequest, ContextExamplePair, CoreSearchRequest, Datatype, DiscoverRequestInternal,
     GroupsResult, Modifier, PointGroup, RecommendExample, RecommendGroupsRequestInternal,
-    SearchGroupsRequestInternal, SparseIndexParams, SparseVectorParams, VectorParamsDiff,
-    VectorsConfigDiff,
-
+    ReshardingInfo, SearchGroupsRequestInternal, SparseIndexParams, SparseVectorParams,
+    VectorParamsDiff, VectorsConfigDiff,
 };
 use crate::config::{
     default_replication_factor, default_write_consistency_factor, CollectionConfig,
