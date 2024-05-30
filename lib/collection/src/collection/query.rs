@@ -3,14 +3,16 @@ use std::sync::Arc;
 
 use futures::{future, TryFutureExt};
 use itertools::{Either, Itertools};
+use segment::common::reciprocal_rank_fusion::rrf_scoring;
 use segment::types::{Order, ScoredPoint};
 use segment::utils::scored_point_ties::ScoredPointTies;
+use tokio::time::Instant;
 
 use super::Collection;
 use crate::common::fetch_vectors::resolve_referenced_vectors_batch;
 use crate::operations::consistency_params::ReadConsistency;
 use crate::operations::shard_selector_internal::ShardSelectorInternal;
-use crate::operations::types::CollectionResult;
+use crate::operations::types::{CollectionError, CollectionResult};
 use crate::operations::universal_query::collection_query::CollectionQueryRequest;
 use crate::operations::universal_query::shard_query::{
     Fusion, ScoringQuery, ShardQueryRequest, ShardQueryResponse,
@@ -64,6 +66,8 @@ impl Collection {
         read_consistency: Option<ReadConsistency>,
         shard_selection: &ShardSelectorInternal,
     ) -> CollectionResult<Vec<ScoredPoint>> {
+        let instant = Instant::now();
+
         // Turn ids into vectors, if necessary
         let ids_to_vectors = resolve_referenced_vectors_batch(
             &[(&request, shard_selection.clone())],
@@ -73,10 +77,41 @@ impl Collection {
         )
         .await?;
 
-        let _shard_request = request.try_into_shard_request(&ids_to_vectors)?;
+        let request = Arc::new(request.try_into_shard_request(&ids_to_vectors)?);
 
-        // TODO(universal-query): Implement the rest of the user-facing query logic
-        todo!()
+        let all_shards_results = self
+            .query_shards_concurrently(request.clone(), read_consistency, shard_selection)
+            .await?;
+
+        let mut merged_intemediates = self
+            .merge_intermediate_results_from_shards(request.as_ref(), all_shards_results)
+            .await?;
+
+        let result = if let Some(ScoringQuery::Fusion(fusion)) = &request.query {
+            // If the root query is a Fusion, the returned results correspond to each the prefetches.
+            match fusion {
+                Fusion::Rrf => rrf_scoring(merged_intemediates, request.limit, request.offset),
+            }
+        } else {
+            // Otherwise, it will be a list with a single list of scored points.
+            debug_assert_eq!(merged_intemediates.len(), 1);
+            merged_intemediates
+                .pop()
+                .ok_or_else(|| {
+                    CollectionError::service_error(
+                        "Query response was expected to have one list of results.",
+                    )
+                })?
+                .into_iter()
+                .skip(request.offset)
+                .take(request.limit)
+                .collect()
+        };
+
+        let filter_refs = request.filter_refs();
+        self.post_process_if_slow_request(instant.elapsed(), filter_refs);
+
+        Ok(result)
     }
 
     /// To be called on the remote instance. Only used for the internal service.
@@ -91,23 +126,37 @@ impl Collection {
     ) -> CollectionResult<ShardQueryResponse> {
         let request = Arc::new(request);
 
-        let mut all_shards_results = self
+        let all_shards_results = self
             .query_shards_concurrently(Arc::clone(&request), read_consistency, shard_selection)
             .await?;
 
-        let queries_for_results = intermediate_query_infos(&request);
+        let merged = self
+            .merge_intermediate_results_from_shards(request.as_ref(), all_shards_results)
+            .await?;
+
+        Ok(merged)
+    }
+
+    /// Merges the results in each shard for each intermediate query.
+    /// ```text
+    /// [ [shard1_result1, shard1_result2],
+    ///          ↓               ↓
+    ///   [shard2_result1, shard2_result2] ]
+    ///
+    /// = [merged_result1, merged_result2]
+    /// ```
+    async fn merge_intermediate_results_from_shards(
+        &self,
+        request: &ShardQueryRequest,
+        mut all_shards_results: Vec<ShardQueryResponse>,
+    ) -> CollectionResult<ShardQueryResponse> {
+        let queries_for_results = intermediate_query_infos(request);
         let results_len = queries_for_results.len();
-        let mut results = ShardQueryResponse::with_capacity(results_len);
+        let mut results = Vec::with_capacity(results_len);
         debug_assert!(all_shards_results
             .iter()
             .all(|shard_results| shard_results.len() == results_len));
 
-        // Time to merge the results in each shard for each intermediate query.
-        // [ [shard1_result1, shard1_result2],
-        //          ↓               ↓
-        //   [shard2_result1, shard2_result2] ]
-        //
-        // = [merged_result1, merged_result2]
         let collection_params = self.collection_config.read().await.params.clone();
         for (idx, intermediate_info) in queries_for_results.into_iter().enumerate() {
             let same_result_per_shard = all_shards_results
@@ -139,7 +188,13 @@ impl Collection {
 ///
 /// Example: `[info1, info2, info3]` corresponds to `[result1, result2, result3]` of each shard
 fn intermediate_query_infos(request: &ShardQueryRequest) -> Vec<IntermediateQueryInfo<'_>> {
-    if let Some(ScoringQuery::Fusion(Fusion::Rrf)) = request.query {
+    let has_intermediate_results = request
+        .query
+        .as_ref()
+        .map(|sq| sq.needs_intermediate_results())
+        .unwrap_or(false);
+
+    if has_intermediate_results {
         // In case of RRF, expect the propagated intermediate results
         request
             .prefetches
